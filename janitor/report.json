@@ -1,0 +1,9 @@
+[
+  {
+    "resource_id": "vol-1e62f053",
+    "resource_type": "EBS Volume",
+    "status": "Unattached (Orphan)",
+    "monthly_cost_impact": 1.6,
+    "reason": "Volume of size 20GB is not attached to any EC2 instance."
+  }
+]
