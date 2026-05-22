@@ -47,3 +47,5 @@ With one more week I would add multi-account AWS Organizations support, GCP prov
 ## AI usage disclosure
 
 Used Claude to scaffold boilerplate Terraform module structure and GitHub Actions YAML syntax. Claude initially suggested terraform-local in CI without pinning the pip version which caused a flaky install. Fixed by adding explicit version pin. Wrote janitor.py core scanning logic manually because EC2 StateTransitionReason parsing is quirky and I wanted to own that logic and test it directly.
+
+ . .
