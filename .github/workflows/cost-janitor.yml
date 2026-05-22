@@ -9,29 +9,34 @@ permissions:
   contents: read
 
 jobs:
-  run-cost-janitor:
+  cost-janitor:
     runs-on: ubuntu-latest
 
+    services:
+      localstack:
+        image: localstack/localstack:3.4
+        ports:
+          - 4566:4566
+        env:
+          SERVICES: ec2,s3,iam,sts
+          DEFAULT_REGION: us-east-1
+        options: >-
+          --health-cmd "curl -sf http://localhost:4566/_localstack/health || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 15
+
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: "3.11"
 
-      - name: Install dependencies
-        run: |
-          pip install -r janitor/requirements.txt
-          # Agar pytest dependencies hain toh unhe bhi install karein
-          pip install pytest
-
-      - name: Start LocalStack
-        run: |
-          pip install localstack
-          localstack start -d
-          localstack wait -t 30
+      - name: Install Python dependencies
+        run: pip install -r janitor/requirements.txt moto pytest
 
       - name: Run Terraform
         working-directory: ./terraform
@@ -39,13 +44,10 @@ jobs:
           terraform init
           terraform apply -auto-approve
 
-      - name: Run Cost Janitor Script
+      - name: Run Cost Janitor
         id: janitor
         run: |
-          # Python script ko run karo aur output ko markdown file me save karo
           python janitor/janitor.py --dry-run
-          
-          # Check karo agar report.md file bani hai aur usme data hai
           if [ -s janitor/report.md ]; then
             echo "ORPHANS_FOUND=true" >> $GITHUB_ENV
           else
@@ -64,7 +66,7 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `##  Cost Janitor Found Orphans\n\n${summary}`
+              body: `## Cost Janitor Found Orphans\n\n${summary}`
             });
 
       - name: Run unit tests
