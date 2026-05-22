@@ -9,13 +9,13 @@ terraform {
 }
 
 provider "aws" {
-  region                      = var.region
+  region = var.region
+
   access_key                  = "test"
   secret_key                  = "test"
   skip_credentials_validation = true
   skip_metadata_api_check     = true
   skip_requesting_account_id  = true
-  s3_use_path_style           = true
 
   endpoints {
     ec2 = "http://localhost:4566"
@@ -24,52 +24,80 @@ provider "aws" {
   }
 }
 
-module "network" {
-  source             = "./modules/network"
-  vpc_cidr           = var.vpc_cidr
-  subnet_cidrs       = ["10.20.1.0/24", "10.20.2.0/24"]
-  availability_zones = ["${var.region}a", "${var.region}b"]
-  ssh_allowed_cidr   = var.ssh_allowed_cidr
-  
-  tags = {
-    Environment = var.environment
+locals {
+  common_tags = {
     Project     = var.project
+    Environment = var.environment
     Owner       = var.owner
+    ManagedBy   = "terraform"
   }
 }
 
-resource "aws_s3_bucket" "app_logs" {
-  bucket        = var.log_bucket_name
-  force_destroy = true
+module "network" {
+  source = "./modules/network"
 
-  tags = {
-    Name        = "${var.project}-${var.environment}-app-logs"
-    Environment = var.environment
-    Project     = var.project
-  }
+  vpc_cidr           = var.vpc_cidr
+  subnet_cidrs       = ["10.20.1.0/24", "10.20.2.0/24"]
+  availability_zones = ["us-east-1a", "us-east-1b"]
+  ssh_allowed_cidr   = var.ssh_allowed_cidr
+  tags               = local.common_tags
 }
 
 resource "aws_instance" "web" {
-  ami                    = var.ami_id
-  instance_type          = var.instance_type
-  subnet_id              = module.network.public_subnet_ids[0]
+  count         = 2
+  ami           = var.ami_id
+  instance_type = var.instance_type
+  subnet_id     = module.network.public_subnet_ids[count.index]
+
   vpc_security_group_ids = [module.network.web_security_group_id]
 
-  tags = {
-    Name        = "${var.project}-${var.environment}-web-server"
-    Environment = var.environment
-    Project     = var.project
+  tags = merge(local.common_tags, {
+    Name = "${var.project}-${var.environment}-web-${count.index + 1}"
+    Tier = "web"
+  })
+}
+
+resource "aws_s3_bucket" "app_logs" {
+  bucket = var.log_bucket_name
+  tags   = local.common_tags
+}
+
+resource "aws_s3_bucket_versioning" "app_logs" {
+  bucket = aws_s3_bucket.app_logs.id
+
+  versioning_configuration {
+    status = "Enabled"
   }
 }
 
-resource "aws_ebs_volume" "orphan_volume" {
-  availability_zone = "${var.region}a"
+resource "aws_s3_bucket_lifecycle_configuration" "app_logs" {
+  bucket = aws_s3_bucket.app_logs.id
+
+  rule {
+    id     = "expire-noncurrent-versions"
+    status = "Enabled"
+
+    noncurrent_version_expiration {
+      noncurrent_days = 30
+    }
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "app_logs" {
+  bucket = aws_s3_bucket.app_logs.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_ebs_volume" "orphan" {
+  availability_zone = "us-east-1a"
   size              = 20
   type              = "gp3"
 
-  tags = {
-    Name        = "${var.project}-${var.environment}-orphan-vol"
-    Environment = var.environment
-    Project     = var.project
-  }
+  tags = merge(local.common_tags, {
+    Name = "${var.project}-${var.environment}-orphan-vol"
+  })
 }
