@@ -2,14 +2,12 @@ name: Cost Janitor CI
 
 on:
   pull_request:
-    branches: [ main ]
-
-permissions:
-  pull-requests: write
-  contents: read
+  push:
+    branches: [main]
 
 jobs:
   cost-janitor:
+    name: Run Cost Janitor
     runs-on: ubuntu-latest
 
     services:
@@ -38,27 +36,65 @@ jobs:
       - name: Install Python dependencies
         run: pip install -r janitor/requirements.txt moto pytest
 
-      - name: Run Terraform
-        working-directory: ./terraform
+      - name: Install terraform-local
+        run: pip install terraform-local
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.7.5"
+
+      - name: Wait for LocalStack
         run: |
-          terraform init
-          terraform apply -auto-approve
+          for i in $(seq 1 20); do
+            curl -sf http://localhost:4566/_localstack/health && break
+            echo "Waiting... ($i/20)"
+            sleep 5
+          done
+
+      - name: Terraform Init
+        working-directory: terraform
+        env:
+          AWS_ACCESS_KEY_ID: test
+          AWS_SECRET_ACCESS_KEY: test
+          AWS_DEFAULT_REGION: us-east-1
+        run: tflocal init
+
+      - name: Terraform Apply
+        working-directory: terraform
+        env:
+          AWS_ACCESS_KEY_ID: test
+          AWS_SECRET_ACCESS_KEY: test
+          AWS_DEFAULT_REGION: us-east-1
+        run: tflocal apply -auto-approve
 
       - name: Run Cost Janitor
         id: janitor
+        working-directory: janitor
+        env:
+          AWS_ACCESS_KEY_ID: test
+          AWS_SECRET_ACCESS_KEY: test
+          AWS_DEFAULT_REGION: us-east-1
         run: |
-          python janitor/janitor.py --dry-run
-          if [ -s janitor/report.md ]; then
-            echo "ORPHANS_FOUND=true" >> $GITHUB_ENV
-          else
-            echo "ORPHANS_FOUND=false" >> $GITHUB_ENV
-          fi
+          python janitor.py \
+            --dry-run \
+            --endpoint-url http://localhost:4566 \
+            --output report.json \
+            --output-md report.md || echo "ORPHANS_FOUND=true" >> $GITHUB_ENV
+
+      - name: Upload reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cost-janitor-report
+          path: |
+            janitor/report.json
+            janitor/report.md
 
       - name: Post PR comment
         if: github.event_name == 'pull_request' && env.ORPHANS_FOUND == 'true'
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const fs = require('fs');
             const summary = fs.readFileSync('janitor/report.md', 'utf8');
@@ -75,6 +111,4 @@ jobs:
 
       - name: Fail if orphans found
         if: env.ORPHANS_FOUND == 'true'
-        run: |
-          echo "Orphan resources detected! Failing build as per requirements."
-          exit 1
+        run: exit 1
