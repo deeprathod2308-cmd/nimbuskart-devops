@@ -2,7 +2,7 @@
 
 ## Video Link
 
-[VIDEO LINK BAAD MEIN ADD KARNA]
+https://www.loom.com/share/c222040233144bd8bfd51d8eab311a68
 
 ## What the video covers
 

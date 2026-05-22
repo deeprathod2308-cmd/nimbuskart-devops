@@ -1,6 +1,6 @@
 # Cost Janitor Report
 
-**Scan time:** 2026-05-22T06:39:42Z
+**Scan time:** 2026-05-22T10:06:46Z
 **Account:** 000000000000
 **Region:** us-east-1
 

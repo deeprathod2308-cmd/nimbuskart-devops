@@ -16,7 +16,7 @@
 
 ## Walkthrough video
 
-Link: [VIDEO LINK BAAD MEIN ADD KARNA]
+Link: https://www.loom.com/share/c222040233144bd8bfd51d8eab311a68
 Length: 5 minutes
 
 ## Sample report
