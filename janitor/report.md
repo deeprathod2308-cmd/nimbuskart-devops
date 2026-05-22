@@ -1,7 +1,18 @@
-# Cost Janitor - Scan Report
+# Cost Janitor Report
 
-###  Total Potential Monthly Savings: $1.60
+**Scan time:** 2026-05-22T05:11:15Z
+**Account:** 000000000000
+**Region:** us-east-1
 
-| Resource ID | Type | Status | Monthly Cost | Reason |
-| --- | --- | --- | --- | --- |
-| vol-1e62f053 | EBS Volume | Unattached (Orphan) | $1.60 | Volume of size 20GB is not attached to any EC2 instance. |
+## Summary
+
+| Metric | Value |
+|--------|-------|
+| Total orphans | 1 |
+| Monthly waste | $1.60 |
+
+## Findings
+
+| Resource ID | Type | Reason | Age | Cost/mo |
+|-------------|------|--------|-----|---------|
+| `vol-497fa6a9` | ebs_volume | unattached | 0 | $1.60 |
